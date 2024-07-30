@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.vectorstores import FAISS
@@ -8,6 +9,9 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 import os
+
+
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -63,6 +67,12 @@ def generate_response(message):
     best_practice = retrieve_info(message)
     response = chain.run(message=message, best_practice=best_practice)
     return response
+
+
+
+app.add_middleware(
+    CORSMiddleware, allow_origins=['null'],
+    allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
 @app.post("/query/")
 def query_passport_service(query: QueryModel):
