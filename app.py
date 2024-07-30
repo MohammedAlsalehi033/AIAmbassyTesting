@@ -71,7 +71,7 @@ def generate_response(message):
 
 
 app.add_middleware(
-    CORSMiddleware, allow_origins=['null'],
+    CORSMiddleware, allow_origins=['https://yemenembassy.pk'],
     allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
 @app.post("/query/")
