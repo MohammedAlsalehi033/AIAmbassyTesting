@@ -1,0 +1,23 @@
+# Ignore .env files
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# Ignore streamlit static files
+.streamlit/
+
+# Ignore compiled files
+*.so
+*.dylib
+*.dll
+
+# Ignore macOS specific files
+.DS_Store
+
+# Ignore Windows specific files
+Thumbs.db
