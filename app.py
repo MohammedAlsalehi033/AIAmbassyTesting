@@ -1,4 +1,5 @@
-import streamlit as st
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 from langchain.document_loaders.csv_loader import CSVLoader
 from langchain.vectorstores import FAISS
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -11,7 +12,12 @@ import os
 # Load environment variables from .env file
 load_dotenv()
 
-# Retrieve the API key from the .env file
+# Define a request body model
+class QueryModel(BaseModel):
+    message: str
+
+# Initialize FastAPI app
+app = FastAPI()
 
 # Load the CSV file
 loader = CSVLoader(file_path="./passport_application_qa.csv")
@@ -23,9 +29,7 @@ db = FAISS.from_documents(documents, embeddings)
 
 def retrieve_info(query):
     similar_response = db.similarity_search(query, k=3)
-
     page_contents_array = [doc.page_content for doc in similar_response]
-
     return page_contents_array
 
 # Initialize the LLM with the API key
@@ -51,34 +55,19 @@ Here is a list of best practices of how we normally respond to users in similar 
 Please write the best response that I should send to this user:
 """
 
-# Example usage in your script
 prompt_template = PromptTemplate(template=template, input_variables=["message", "best_practice"])
 
-prompt = PromptTemplate(
-    input_variables=["message", "best_practice"],
-    template=template
-)
-
-chain = LLMChain(llm=llm, prompt=prompt)
+chain = LLMChain(llm=llm, prompt=prompt_template)
 
 def generate_response(message):
     best_practice = retrieve_info(message)
     response = chain.run(message=message, best_practice=best_practice)
     return response
 
-def main():
-    st.set_page_config(
-        page_title="Digital ambassador", page_icon="📄")
-
-    st.header("Digital ambassador 📄")
-    message = st.text_area("customer message")
-
-    if message:
-        st.write("Generating Response...")
-
-        result = generate_response(message)
-
-        st.info(result)
-
-if __name__ == '__main__':
-    main()
+@app.post("/query/")
+def query_passport_service(query: QueryModel):
+    try:
+        response = generate_response(query.message)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
