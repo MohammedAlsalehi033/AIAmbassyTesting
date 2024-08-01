@@ -39,8 +39,9 @@ def retrieve_info(query):
 # Initialize the LLM with the API key
 llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo")
 
-template = """
+template = template = """
 You are a highly knowledgeable and efficient embassy helper chatbot.
+you work at the Yemen Embassy in Islamabad 
 You will receive a query from a user, and you will provide the best response 
 that follows all the rules and best practices below:
 
@@ -52,22 +53,24 @@ that follows all the rules and best practices below:
 
 4/ you response will be directly sent to the user so it should be formatted accordingly
 
+5/ you response should be according to the language of the user
+
+6/  respone in arabic if not specifed
+
 Below is a query I received from the user:
 {message}
 
-Here is a list of best practices of how we normally respond to users in similar scenarios:
-{best_practice}
 
 Please write the best response
 """
 
-prompt_template = PromptTemplate(template=template, input_variables=["message", "best_practice"])
+prompt_template = PromptTemplate(template=template, input_variables=["message"])
 
 chain = LLMChain(llm=llm, prompt=prompt_template)
 
 def generate_response(message):
     best_practice = retrieve_info(message)
-    response = chain.run(message=message, best_practice=best_practice)
+    response = chain.run(message=message)
     return response
 
 
