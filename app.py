@@ -9,9 +9,9 @@ from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
 import os
-
-
-
+import hashlib
+import time
+import json
 
 # Load environment variables from .env file
 load_dotenv()
@@ -27,11 +27,25 @@ app = FastAPI()
 loader = CSVLoader(file_path="./passport_application_qa.csv")
 documents = loader.load()
 
+# Initialize embeddings and FAISS index
 embeddings = OpenAIEmbeddings()
 db = FAISS.from_documents(documents, embeddings)
 
+# Initialize a cache for embeddings
+embedding_cache = {}
+
+def get_query_embedding(query):
+    query_hash = hashlib.md5(query.encode()).hexdigest()
+    if query_hash in embedding_cache:
+        return embedding_cache[query_hash]
+    else:
+        embedding = embeddings.embed_text(query)
+        embedding_cache[query_hash] = embedding
+        return embedding
+
 def retrieve_info(query):
-    similar_response = db.similarity_search(query, k=5)
+    query_embedding = get_query_embedding(query)
+    similar_response = db.similarity_search_by_vector(query_embedding, k=5)
     page_contents_array = [doc.page_content for doc in similar_response]
     return " ".join(page_contents_array)
 
@@ -64,21 +78,42 @@ prompt_template = PromptTemplate(template=template, input_variables=["message", 
 
 chain = LLMChain(llm=llm, prompt=prompt_template)
 
+# Rate limiting variables
+RATE_LIMIT = 10  # Number of requests per minute
+last_request_time = time.time()
+request_counter = 0
+
+def rate_limited():
+    global last_request_time, request_counter
+    current_time = time.time()
+    if current_time - last_request_time < 60:
+        request_counter += 1
+    else:
+        last_request_time = current_time
+        request_counter = 1
+    if request_counter > RATE_LIMIT:
+        return True
+    return False
+
 def generate_response(message):
+    if rate_limited():
+        raise HTTPException(status_code=429, detail="Rate limit exceeded. Please try again later.")
     context = retrieve_info(message)
     response = chain.run(message=message, context=context)
     return response
 
-
-
 app.add_middleware(
     CORSMiddleware, allow_origins=['https://yemenembassy.pk'],
-    allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
+    allow_credentials=True, allow_methods=['*'], allow_headers=['*']
+)
 
 @app.post("/query/")
 def query_passport_service(query: QueryModel):
     try:
         response = generate_response(query.message)
         return {"response": response}
+    except HTTPException as e:
+        raise e
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    
