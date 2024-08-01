@@ -27,50 +27,46 @@ app = FastAPI()
 loader = CSVLoader(file_path="./passport_application_qa.csv")
 documents = loader.load()
 
-# Initialize embeddings with the API key
 embeddings = OpenAIEmbeddings()
 db = FAISS.from_documents(documents, embeddings)
 
 def retrieve_info(query):
-    similar_response = db.similarity_search(query, k=3)
+    similar_response = db.similarity_search(query, k=5)
     page_contents_array = [doc.page_content for doc in similar_response]
-    return page_contents_array
+    return " ".join(page_contents_array)
 
 # Initialize the LLM with the API key
-llm = ChatOpenAI(temperature=0, model="gpt-3.5-turbo")
+llm = ChatOpenAI(temperature=0.4, model="gpt-3.5-turbo")
 
-template = template = """
+template = """
 You are a highly knowledgeable and efficient embassy helper chatbot.
-you work at the Yemen Embassy in Islamabad 
+You work at the Yemen Embassy in Islamabad.
 You will receive a query from a user, and you will provide the best response 
 that follows all the rules and best practices below:
 
-1/ The response should closely follow the established best practices in terms of length, tone of voice, logical structure, and detailed information.
+1. The response should closely follow the established best practices in terms of length, tone of voice, logical structure, and detailed information.
+2. If the best practice is irrelevant to the query, try to mimic the style of the best practice to formulate the response.
+3. You should only respond to queries related to embassy services. If you do not know the answer or the query is outside the scope of embassy services, you should politely apologize and indicate that you do not have the information.
+4. Your response will be directly sent to the user, so it should be formatted accordingly.
+5. Your response should be according to the language of the user.
+6. Respond in Arabic if not specified.
 
-2/ If the best practice is irrelevant to the query, try to mimic the style of the best practice to formulate the response.
-
-3/ You should only respond to queries related to embassy services. If you do not know the answer or the query is outside the scope of embassy services, you should politely apologize and indicate that you do not have the information.
-
-4/ you response will be directly sent to the user so it should be formatted accordingly
-
-5/ you response should be according to the language of the user
-
-6/  respone in arabic if not specifed
+Context: {context}
 
 Below is a query I received from the user:
 {message}
 
-
-Please write the best response
+Please write the best response.
 """
 
-prompt_template = PromptTemplate(template=template, input_variables=["message"])
+# Example usage in your script
+prompt_template = PromptTemplate(template=template, input_variables=["message", "context"])
 
 chain = LLMChain(llm=llm, prompt=prompt_template)
 
 def generate_response(message):
-    best_practice = retrieve_info(message)
-    response = chain.run(message=message)
+    context = retrieve_info(message)
+    response = chain.run(message=message, context=context)
     return response
 
 
