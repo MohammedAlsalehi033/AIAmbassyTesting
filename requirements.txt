@@ -7,3 +7,5 @@ faiss-cpu
 tiktoken
 langchain-community
 uvicorn==0.30.1
+pandas
+sentence-transformers
