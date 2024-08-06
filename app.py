@@ -2,16 +2,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from langchain.document_loaders.csv_loader import CSVLoader
-from langchain.vectorstores import FAISS
-from langchain.embeddings.openai import OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import LLMChain
 from dotenv import load_dotenv
-import hashlib
-import json
 import os
-
+from sentence_transformers import SentenceTransformer
+import pickle
+import faiss
 
 
 
@@ -25,17 +23,45 @@ class QueryModel(BaseModel):
 # Initialize FastAPI app
 app = FastAPI()
 
-# Load the CSV file
+
+
+
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=['https://yemenembassy.pk'],
+    allow_credentials=True, 
+    allow_methods=['*'], 
+    allow_headers=['*']
+)
+
+
+
 loader = CSVLoader(file_path="./passport_application_qa.csv")
 documents = loader.load()
 
-embeddings = OpenAIEmbeddings()
-db = FAISS.from_documents(documents, embeddings)
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+document_texts = [doc.page_content for doc in documents]
+
+document_embeddings = model.encode(document_texts)
+
+with open('./documents.pkl', 'wb') as f:
+    pickle.dump(document_texts, f)
+
+with open('./embeddings.pkl', 'wb') as f:
+    pickle.dump(document_embeddings, f)
+
+d = document_embeddings.shape[1]
+index = faiss.IndexFlatL2(d)
+index.add(document_embeddings)
+
+faiss.write_index(index, './faiss_index.index')
 
 def retrieve_info(query):
-    similar_response = db.similarity_search(query, k=5)
-    page_contents_array = [doc.page_content for doc in similar_response]
-    return " ".join(page_contents_array)
+    query_embedding = model.encode([query])
+    D, I = index.search(query_embedding, k=5)
+    results = [document_texts[i] for i in I[0]]
+    return " ".join(results)
 
 # Initialize the LLM with the API key
 llm = ChatOpenAI(temperature=0.4, model="gpt-3.5-turbo")
@@ -72,10 +98,6 @@ def generate_response(message):
     return response
 
 
-
-app.add_middleware(
-    CORSMiddleware, allow_origins=['https://yemenembassy.pk'],
-    allow_credentials=True, allow_methods=['*'], allow_headers=['*'])
 
 @app.post("/query/")
 def query_passport_service(query: QueryModel):
